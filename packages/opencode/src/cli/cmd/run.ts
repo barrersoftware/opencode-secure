@@ -341,6 +341,15 @@ export const RunCommand = cmd({
     await bootstrap(process.cwd(), async () => {
       const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
         const request = new Request(input, init)
+        // CVE-2026-22812: Add authentication header
+        let password = Flag.OPENCODE_SERVER_PASSWORD
+        if (!password) {
+          password = Server.getPassword()
+        }
+        if (password) {
+          const username = Flag.OPENCODE_SERVER_USERNAME ?? "opencode"
+          request.headers.set("Authorization", `Basic ${btoa(`${username}:${password}`)}`)
+        }
         return Server.App().fetch(request)
       }) as typeof globalThis.fetch
       const sdk = createOpencodeClient({ baseUrl: "http://opencode.internal", fetch: fetchFn })

@@ -145,7 +145,14 @@ export const rpc = {
 Rpc.listen(rpc)
 
 function getAuthorizationHeader(): string | undefined {
-  const password = Flag.OPENCODE_SERVER_PASSWORD
+  // CVE-2026-22812: Get password from env or use server-generated password
+  let password = Flag.OPENCODE_SERVER_PASSWORD
+  
+  // If no env password, check if server generated one
+  if (!password) {
+    password = Server.getPassword()
+  }
+  
   if (!password) return undefined
   const username = Flag.OPENCODE_SERVER_USERNAME ?? "opencode"
   return `Basic ${btoa(`${username}:${password}`)}`
