@@ -49,9 +49,38 @@ export namespace Server {
 
   let _url: URL | undefined
   let _corsWhitelist: string[] = []
+  let _generatedPassword: string | undefined
 
   export function url(): URL {
     return _url ?? new URL("http://localhost:4096")
+  }
+
+  export function getPassword(): string | undefined {
+    return _generatedPassword
+  }
+
+  function generateSecurePassword(): string {
+    // Generate a 32-character random password using crypto-safe random bytes
+    // Uses rejection sampling to avoid modulo bias
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'
+    const passwordLength = 32
+    const result: string[] = []
+    const charsetLength = chars.length
+    const max = 256 - (256 % charsetLength)
+
+    while (result.length < passwordLength) {
+      const bytes = new Uint8Array(passwordLength)
+      crypto.getRandomValues(bytes)
+      for (let i = 0; i < bytes.length && result.length < passwordLength; i++) {
+        const byte = bytes[i]
+        // Rejection sampling to avoid modulo bias
+        if (byte < max) {
+          result.push(chars[byte % charsetLength])
+        }
+      }
+    }
+
+    return result.join('')
   }
 
   export const Event = {
@@ -83,8 +112,14 @@ export namespace Server {
           })
         })
         .use((c, next) => {
-          const password = Flag.OPENCODE_SERVER_PASSWORD
-          if (!password) return next()
+          // Security Fix for CVE-2026-22812: Authentication is now mandatory
+          let password = Flag.OPENCODE_SERVER_PASSWORD
+          
+          // Use generated password if no custom password is set
+          if (!password) {
+            password = _generatedPassword
+          }
+          
           const username = Flag.OPENCODE_SERVER_USERNAME ?? "opencode"
           return basicAuth({ username, password })(c, next)
         })
@@ -536,6 +571,19 @@ export namespace Server {
 
   export function listen(opts: { port: number; hostname: string; mdns?: boolean; cors?: string[] }) {
     _corsWhitelist = opts.cors ?? []
+
+    // Generate password on server init if needed, not on every request
+    if (!Flag.OPENCODE_SERVER_PASSWORD && !_generatedPassword) {
+      _generatedPassword = generateSecurePassword()
+      log.info("⚠️  SECURITY: No OPENCODE_SERVER_PASSWORD set - generated random password")
+      log.info("═══════════════════════════════════════════════════════════")
+      log.info("🔐 Server Password: [REDACTED - check secure output]")
+      log.info("👤 Server Username: opencode")
+      log.info("═══════════════════════════════════════════════════════════")
+      log.info("💡 Set OPENCODE_SERVER_PASSWORD env var to use a custom password")
+      // Output password to stderr so it can be captured separately
+      console.error(`\n🔐 Generated Password: ${_generatedPassword}\n`)
+    }
 
     const args = {
       hostname: opts.hostname,
