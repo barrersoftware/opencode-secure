@@ -50,6 +50,7 @@ export namespace Server {
   let _url: URL | undefined
   let _corsWhitelist: string[] = []
   let _generatedPassword: string | undefined
+  let _testPassword: string | undefined // For test environment
 
   export function url(): URL {
     return _url ?? new URL("http://localhost:4096")
@@ -57,6 +58,11 @@ export namespace Server {
 
   export function getPassword(): string | undefined {
     return _generatedPassword
+  }
+
+  // Test-only function to set password (called before Server.App())
+  export function setTestPassword(password: string) {
+    _testPassword = password
   }
 
   function generateSecurePassword(): string {
@@ -118,6 +124,11 @@ export namespace Server {
           // Use generated password if no custom password is set
           if (!password) {
             password = _generatedPassword
+          }
+          
+          // Test mode: allow test password override
+          if (!password && _testPassword) {
+            password = _testPassword
           }
           
           const username = Flag.OPENCODE_SERVER_USERNAME ?? "opencode"

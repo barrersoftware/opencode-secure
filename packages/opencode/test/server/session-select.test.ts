@@ -1,3 +1,6 @@
+// Set test password BEFORE importing modules (Flag reads env at import time)
+process.env.OPENCODE_SERVER_PASSWORD = "test-password-for-tests"
+
 import { describe, expect, test } from "bun:test"
 import path from "path"
 import { Session } from "../../src/session"
@@ -7,6 +10,14 @@ import { Server } from "../../src/server/server"
 
 const projectRoot = path.join(__dirname, "../..")
 Log.init({ print: false })
+
+// Test credentials for authentication
+const TEST_USERNAME = "opencode"
+const TEST_PASSWORD = "test-password-for-tests"
+const authHeader = `Basic ${Buffer.from(`${TEST_USERNAME}:${TEST_PASSWORD}`).toString("base64")}`
+
+// Set test password for Server.App()
+Server.setTestPassword(TEST_PASSWORD)
 
 describe("tui.selectSession endpoint", () => {
   test("should return 200 when called with valid session", async () => {
@@ -20,7 +31,10 @@ describe("tui.selectSession endpoint", () => {
         const app = Server.App()
         const response = await app.request("/tui/select-session", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": authHeader,
+          },
           body: JSON.stringify({ sessionID: session.id }),
         })
 
@@ -45,7 +59,10 @@ describe("tui.selectSession endpoint", () => {
         const app = Server.App()
         const response = await app.request("/tui/select-session", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": authHeader,
+          },
           body: JSON.stringify({ sessionID: nonExistentSessionID }),
         })
 
@@ -66,7 +83,10 @@ describe("tui.selectSession endpoint", () => {
         const app = Server.App()
         const response = await app.request("/tui/select-session", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": authHeader,
+          },
           body: JSON.stringify({ sessionID: invalidSessionID }),
         })
 
